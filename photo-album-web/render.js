@@ -102,3 +102,44 @@ function uploadPhoto() {
    });
 
 }
+
+function runSpeechRecognition() {
+    // get output div reference
+    var output = document.getElementById("search-input");
+    // get action element reference
+    var action = document.getElementById("action");
+    // new speech recognition object
+    try {
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var recognition = new SpeechRecognition();
+    }
+    catch(e) {
+        console.error(e);
+        document.getElementById("modalMsg").innerHTML = "Speech recognition not supported!";
+        $('#modalContainer').modal('show');
+        $('.app').hide();
+        return;
+    }
+
+    // This runs when the speech recognition service starts
+    recognition.onstart = function() {
+        action.innerHTML = "<small>listening, please speak...</small>";
+    };
+
+    recognition.onspeechend = function() {
+        action.innerHTML = "<small>stopped listening, hope you are done...</small>";
+        recognition.stop();
+    }
+
+    // This runs when the speech recognition service returns result
+    recognition.onresult = function(event) {
+        var transcript = event.results[0][0].transcript;
+        var confidence = event.results[0][0].confidence;
+        console.log("Transcript: " + transcript);
+        console.log("Confidence: " + confidence);
+        output.value = transcript;
+    };
+
+     // start recognition
+     recognition.start();
+}

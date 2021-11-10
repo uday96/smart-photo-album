@@ -41,9 +41,12 @@
             <form class="form-inline" id="search-form">
                 <div class="form-group">
                     <input id="search-input" type="search" class="form-control" placeholder="Search"/>
+                    <button id="voice-button" type="button" class="btn btn-primary" onclick="runSpeechRecognition()">
+                        <i class="fa fa-microphone"></i>
+                    </button>
                     <button id="search-button" type="button" class="btn btn-primary" onclick="searchPhoto()">
                         <i class="fa fa-search"></i>
-                    </button>
+                    </button>  &nbsp; <span id="action"></span>
                 </div>
             </form>
         </div>

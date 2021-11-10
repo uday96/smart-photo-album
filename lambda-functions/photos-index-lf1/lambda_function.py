@@ -17,7 +17,7 @@ def store_in_es(bucket, file, labels):
     Make an Elasticsearch query
     """
     http = urllib3.PoolManager()
-    url = "%s%s/%s/" % (ES_CONFIG["url"], ES_CONFIG["index"], ES_CONFIG["type"])
+    url = "%s%s/%s/%s" % (ES_CONFIG["url"], ES_CONFIG["index"], ES_CONFIG["type"], file)
     headers = urllib3.make_headers(basic_auth='%s:%s' % (ES_CONFIG["master-username"], ES_CONFIG["master-password"]))
     print(headers)
     headers.update({
