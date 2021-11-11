@@ -2,6 +2,7 @@ import json
 import boto3
 import urllib3
 import inflect
+import uuid
 
 ES_CONFIG = {
     "url": "https://search-yelp-restaurants-es-coi3ozmqyi2g5vr624aing4dja.us-east-1.es.amazonaws.com/",
@@ -13,8 +14,7 @@ ES_CONFIG = {
 
 lex_config = {
     "botName": 'PhotoSearchBot',
-    "botAlias": 'test',
-    'userId': 'ethibjsdj7b5fh2embctau00wo4yl2ws'
+    "botAlias": 'test'
 }
 
 
@@ -73,20 +73,21 @@ def lex_handler(msg):
     # Submit the text
     print('Lex request - config: %s, text: %s' % (lex_config, msg))
     lex_config['inputText'] = msg
-    response = client.post_text(**lex_config)
+    response = client.post_text(userId= uuid.uuid4().hex, **lex_config)
     print('Lex response: %s' % response)
     slots = response['slots']
-    keywords = []
+    keywords = set()
     for k in slots.keys():
         if slots[k] != 'None':
             word = p.singular_noun(slots[k])
             if word == False:
                 # Failed to convert to singular
                 word = slots[k]
-            keywords.append(word)
+            keywords.add(word)
+            keywords.add(slots[k])
 
     print('keywords: ', keywords)
-    return keywords
+    return list(keywords)
 
 
 def lambda_handler(event, context):
