@@ -71,9 +71,10 @@ def lex_handler(msg):
     client = boto3.client('lex-runtime')
     p = inflect.engine()
     # Submit the text
-    print('Lex request - config: %s, text: %s' % (lex_config, msg))
     lex_config['inputText'] = msg
-    response = client.post_text(userId= uuid.uuid4().hex, **lex_config)
+    lex_config["userId"] = uuid.uuid4().hex
+    print('Lex request: %s' % lex_config)
+    response = client.post_text(**lex_config)
     print('Lex response: %s' % response)
     slots = response['slots']
     keywords = set()
