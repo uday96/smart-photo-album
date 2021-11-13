@@ -1,0 +1,620 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "CF template for smart photo album",
+    "Parameters": {
+        "PhotosStoreBucketName": {
+            "Type": "String",
+            "Default": "cf-photos-store"
+        }
+    },
+    "Resources": {
+        "LFPhotosIndexRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess",
+                    "arn:aws:iam::aws:policy/AmazonOpenSearchServiceFullAccess"
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:*"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "LFPhotosIndex": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": "LFPhotosIndexRole",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": "photos-lambda-pipeline-bucket",
+                    "S3Key": "photos-index-lf1.zip"
+                },
+                "Description": "Lambda function for smart-photos-album indexing photos",
+                "Handler": "lambda_function.lambda_handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LFPhotosIndexRole",
+                        "Arn"
+                    ]
+                },
+                "MemorySize": 128,
+                "Timeout": 30,
+                "Runtime": "python3.9",
+                "FunctionName": "cf-index-photos-lf",
+                "Environment": {
+                    "Variables": {
+                        "REGION": "us-east-1"
+                    }
+                }
+            }
+        },
+        "LambdaInvokePermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "LFPhotosIndex",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "s3.amazonaws.com",
+                "SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                },
+                "SourceArn": {
+                  "Fn::Sub": "arn:aws:s3:::${PhotosStoreBucketName}"
+                }
+            }
+        },
+        "LFPhotosSearchRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/AmazonLexFullAccess",
+                    "arn:aws:iam::aws:policy/AmazonOpenSearchServiceFullAccess"
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:*"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "LFPhotosSearch": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": "LFPhotosSearchRole",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": "photos-lambda-pipeline-bucket",
+                    "S3Key": "photos-search-lf2.zip"
+                },
+                "Description": "Lambda function for smart-photos-album searching photos",
+                "Handler": "lambda_function.lambda_handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LFPhotosSearchRole",
+                        "Arn"
+                    ]
+                },
+                "MemorySize": 128,
+                "Timeout": 180,
+                "Runtime": "python3.9",
+                "FunctionName": "cf-search-photos-lf",
+                "Environment": {
+                    "Variables": {
+                        "REGION": "us-east-1"
+                    }
+                }
+            }
+        },
+        "APIPutExecutionRole": {
+              "Type": "AWS::IAM::Role",
+              "Properties": {
+                  "AssumeRolePolicyDocument": {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                          {
+                              "Effect": "Allow",
+                              "Principal": {
+                                  "Service": [
+                                      "apigateway.amazonaws.com"
+                                  ]
+                              },
+                              "Action": [
+                                  "sts:AssumeRole"
+                              ]
+                          }
+                      ]
+                  },
+                  "Path": "/",
+                  "ManagedPolicyArns": [
+                      "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+                  ],
+                  "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:*"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:*"
+                                }
+                            ]
+                        }
+                    }
+                  ]
+              }
+          },
+        "ServerlessRestApiDeployment": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "Properties": {
+                "RestApiId": {
+                    "Ref": "ServerlessRestApi"
+                },
+                "Description": "RestApi deployment",
+                "StageName": "Stage"
+            }
+        },
+        "ServerlessRestApi": {
+            "Type": "AWS::ApiGateway::RestApi",
+            "DependsOn": "APIPutExecutionRole",
+            "Properties": {
+                "BinaryMediaTypes": [
+                    "image~1png"
+                ],
+                "Body": {
+                    "openapi": "3.0.1",
+                    "info": {
+                      "title": "Smart Photo Album - CF",
+                      "description": "AI Photo Gallery application - CF",
+                      "version": "1.0"
+                    },
+                    "paths": {
+                      "/photos": {
+                        "put": {
+                          "operationId": "uploadPhoto",
+                          "x-amazon-apigateway-integration": {
+                            "httpMethod": "PUT",
+                            "type": "aws",
+                            "passthroughBehavior": "when_no_match",
+                            "requestParameters": {
+                              "integration.request.path.object": "method.request.querystring.file",
+                              "integration.request.header.Content-Type": "method.request.header.Content-Type",
+                              "integration.request.header.x-amz-meta-customLabels": "method.request.header.x-amz-meta-customLabels"
+                            },
+                            "credentials": {
+                              "Fn::GetAtt": [
+                                  "APIPutExecutionRole",
+                                  "Arn"
+                              ]
+                            },
+                            "uri": {
+                              "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:s3:path/${PhotosStoreBucketName}/{object}"
+                            }
+                          },
+                          "parameters": [
+                            {
+                              "name": "Content-Type",
+                              "in": "header",
+                              "schema": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "name": "file",
+                              "in": "query",
+                              "required": true,
+                              "schema": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "name": "x-amz-meta-customLabels",
+                              "in": "header",
+                              "schema": {
+                                "type": "string"
+                              }
+                            }
+                          ],
+                          "responses": {
+                            "200": {
+                              "description": "200 response",
+                              "headers": {
+                                "Access-Control-Allow-Origin": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/MODEL725390"
+                                  }
+                                }
+                              }
+                            },
+                            "403": {
+                              "description": "403 response",
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                  }
+                                }
+                              }
+                            },
+                            "500": {
+                              "description": "500 response",
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "security": [
+                            {
+                              "api_key": []
+                            }
+                          ]
+                        },
+                        "options": {
+                          "x-amazon-apigateway-integration": {
+                            "type": "mock"
+                          },
+                          "responses": {
+                            "200": {
+                              "description": "200 response",
+                              "headers": {
+                                "Access-Control-Allow-Origin": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                },
+                                "Access-Control-Allow-Methods": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                },
+                                "Access-Control-Allow-Headers": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "content": {}
+                            }
+                          }
+                        }
+                      },
+                      "/search": {
+                        "get": {
+                          "operationId": "searchPhotos",
+                          "x-amazon-apigateway-integration": {
+                            "httpMethod": "POST",
+                            "type": "aws_proxy",
+                            "uri": {
+                              "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LFPhotosSearch.Arn}/invocations"
+                            }
+                          },
+                          "parameters": [
+                            {
+                              "name": "q",
+                              "in": "query",
+                              "required": true,
+                              "schema": {
+                                "type": "string"
+                              }
+                            }
+                          ],
+                          "responses": {
+                            "200": {
+                              "description": "200 response",
+                              "headers": {
+                                "Access-Control-Allow-Origin": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/SearchResponse"
+                                  }
+                                }
+                              }
+                            },
+                            "403": {
+                              "description": "403 response",
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                  }
+                                }
+                              }
+                            },
+                            "500": {
+                              "description": "500 response",
+                              "content": {
+                                "application/json": {
+                                  "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "security": [
+                            {
+                              "api_key": []
+                            }
+                          ]
+                        },
+                        "options": {
+                          "x-amazon-apigateway-integration": {
+                            "type": "mock"
+                          },
+                          "responses": {
+                            "200": {
+                              "description": "200 response",
+                              "headers": {
+                                "Access-Control-Allow-Origin": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                },
+                                "Access-Control-Allow-Methods": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                },
+                                "Access-Control-Allow-Headers": {
+                                  "schema": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "content": {}
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "components": {
+                      "schemas": {
+                        "MODEL725390": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "Error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "integer",
+                              "format": "int32"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "Photo": {
+                          "type": "object",
+                          "properties": {
+                            "image-url": {
+                              "type": "string"
+                            },
+                            "labels": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "SearchResponse": {
+                          "type": "object",
+                          "properties": {
+                            "results": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/Photo"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "securitySchemes": {
+                        "api_key": {
+                          "type": "apiKey",
+                          "name": "x-api-key",
+                          "in": "header"
+                        }
+                      }
+                    }
+                }
+            }
+        },
+        "LFPhotosSearchAPIPermissionProd": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "FunctionName": {
+                    "Ref": "LFPhotosSearch"
+                },
+                "SourceArn": {
+                    "Fn::Sub": [
+                        "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${__ApiId__}/${__Stage__}/GET/search",
+                        {
+                            "__Stage__": "*",
+                            "__ApiId__": {
+                                "Ref": "ServerlessRestApi"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "PhotosWebBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": "cf-photos-web",
+                "AccessControl": "PublicRead",
+                "WebsiteConfiguration": {
+                    "IndexDocument": "index.html"
+                }
+            }
+        },
+        "WebBucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Id": "MyWebPolicy",
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "PublicReadGetObjects",
+                            "Effect": "Allow",
+                            "Principal": "*",
+                            "Action": "s3:GetObject",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "PhotosWebBucket"
+                                        },
+                                        "/*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "Bucket": {
+                    "Ref": "PhotosWebBucket"
+                }
+            }
+        },
+        "PhotosStoreBucket": {
+            "Type": "AWS::S3::Bucket",
+            "DependsOn": "LambdaInvokePermission",
+            "Properties": {
+                "BucketName": {
+                  "Fn::Sub": "${PhotosStoreBucketName}"
+                },
+                "NotificationConfiguration": {
+                    "LambdaConfigurations": [
+                        {
+                            "Function": {
+                                "Fn::GetAtt": [
+                                    "LFPhotosIndex",
+                                    "Arn"
+                                ]
+                            },
+                            "Event": "s3:ObjectCreated:Put"
+                        }
+                    ]
+                }
+            }
+        },
+        "ESInstance": {
+            "Type": "AWS::OpenSearchService::Domain",
+            "DependsOn": ["LFPhotosIndex", "LFPhotosSearch"],
+            "Properties": {
+                "DomainName": "cf-photos-es",
+                "ClusterConfig": {
+                    "InstanceType": "t3.small.search",
+                    "InstanceCount": 1
+                },
+                "EBSOptions": {
+                    "EBSEnabled": true,
+                    "VolumeSize": 10,
+                    "VolumeType": "gp2"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "WebsiteURL": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "PhotosWebBucket",
+                    "WebsiteURL"
+                ]
+            },
+            "Description": "URL for website hosted on S3"
+        }
+    }
+}
