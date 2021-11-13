@@ -7,4 +7,4 @@ artifacts:
   type: zip
   files:
     - lambda-template.yml
-    - lambda-output-samtemplate.yml
+    - lambda-output-template.yml
